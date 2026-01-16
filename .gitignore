@@ -1,0 +1,19 @@
+# Windows
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# File temporanei
+*.bak
+*.tmp
+*.swp
+*~
+*.log
+
+# Cartelle private (bozze, dati sensibili)
+_private/
+_drafts/
+
+# Editor
+.vscode/
+*.code-workspace
