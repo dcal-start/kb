@@ -31,3 +31,4 @@ Documentazione tecnica e howto - Soiware S.n.c.
 | `templates/` | Template per nuovi documenti |
 | `_private/` | Bozze locali (non committate) |
 
+test
