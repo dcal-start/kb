@@ -30,3 +30,4 @@ Documentazione tecnica e howto - Soiware S.n.c.
 | `backup/` | Bacula, PBS, pgBackRest |
 | `templates/` | Template per nuovi documenti |
 | `_private/` | Bozze locali (non committate) |
+
