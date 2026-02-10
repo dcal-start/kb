@@ -1,7 +1,7 @@
 ---
-tags: [wifi, vpn, fortigate, forticlient, windows11, intel-wifi, ax211, dell, troubleshooting, driver, packet-loss, ipv6, dns]
+tags: [wifi, vpn, fortigate, forticlient, windows11, intel-wifi, ax211, dell, troubleshooting, driver, packet-loss, ipv6, dns, sticky-dns, dhcp]
 created: 2026-01-16
-updated: 2026-01-22
+updated: 2026-02-10
 ---
 
 # Troubleshooting WiFi - Laptop Dell con Intel WiFi AX211
@@ -12,6 +12,7 @@ updated: 2026-01-22
 |----------|------|--------|-------------|
 | 1.0 | 2026-01-16 | Dan | Creazione documento |
 | 1.1 | 2026-01-22 | Dan | Aggiunta sezione IPv6/DNS e procedure disabilitazione massiva |
+| 1.2 | 2026-02-10 | Dan | Aggiunta sezione FortiClient Sticky DNS bug |
 
 ---
 
@@ -140,6 +141,52 @@ Get-NetAdapterBinding -Name "Wi-Fi" -ComponentID ms_tcpip6
 ipconfig /flushdns
 ping dc01.dominio.local
 ```
+
+---
+
+## VERIFICA: FortiClient Sticky DNS (DNS statici residui dopo VPN)
+
+Quando FortiClient si connette alla VPN, il FortiGate pusha i DNS aziendali e FortiClient li scrive nella configurazione della NIC attiva (di solito Wi-Fi). Alla disconnessione, dovrebbe ripristinarli a DHCP, ma **in alcuni casi non lo fa** (bug noto Fortinet, [articolo 279430](https://community.fortinet.com/t5/FortiGate/Technical-Tip-FortiClient-Sticky-DNS/ta-p/279430)).
+
+I DNS aziendali restano "martellati" nella NIC → fuori dalla VPN non si naviga più e la VPN successiva non si connette.
+
+**Trigger comuni:** spegnimento PC senza disconnettere la VPN, crash di FortiClient, cambio rete Wi-Fi durante la VPN, sospensione/ibernazione con VPN attiva.
+
+### Diagnosi
+
+```powershell
+# Se NameServer contiene IP (es. 10.1.1.11,10.x.x.x) e EnableDHCP = 1 → DNS forzati da FortiClient
+$if = Get-NetAdapter -Name "Wi-Fi"
+$cfg = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object {$_.InterfaceIndex -eq $if.ifIndex}
+$guid = $cfg.SettingID.Trim('{}')
+$rk = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{$guid}"
+Get-ItemProperty $rk | Select-Object NameServer, DhcpNameServer, EnableDHCP
+```
+
+### Soluzione utente (senza admin)
+
+"Dimenticare" la rete Wi-Fi e riconnettersi. Questo forza Windows a ricreare il profilo di rete da zero, eliminando i DNS residui.
+
+1. **Impostazioni → Rete e Internet → Wi-Fi → Gestisci reti note**
+2. Selezionare la rete problematica → **Dimentica**
+3. Riconnettersi inserendo la password
+
+Oppure da riga di comando (non richiede admin):
+
+```cmd
+netsh wlan delete profile name="Nome-SSID"
+```
+
+### Soluzione admin
+
+```powershell
+netsh interface ip set dns "Wi-Fi" dhcp
+ipconfig /flushdns
+```
+
+### Prevenzione
+
+Istruire gli utenti a **disconnettere sempre la VPN** prima di spegnere il PC o cambiare rete Wi-Fi.
 
 ---
 
