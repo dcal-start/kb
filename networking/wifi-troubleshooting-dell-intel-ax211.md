@@ -1,7 +1,7 @@
 ---
-tags: [wifi, vpn, fortigate, forticlient, windows11, intel-wifi, ax211, dell, troubleshooting, driver, packet-loss, ipv6, dns, sticky-dns, dhcp]
+tags: [wifi, vpn, fortigate, forticlient, windows11, intel-wifi, ax211, dell, troubleshooting, driver, packet-loss, ipv6, dns, sticky-dns, dhcp, kerberos, smb, share, domain, gpo]
 created: 2026-01-16
-updated: 2026-02-10
+updated: 2026-02-20
 ---
 
 # Troubleshooting WiFi - Laptop Dell con Intel WiFi AX211
@@ -13,6 +13,7 @@ updated: 2026-02-10
 | 1.0 | 2026-01-16 | Dan | Creazione documento |
 | 1.1 | 2026-01-22 | Dan | Aggiunta sezione IPv6/DNS e procedure disabilitazione massiva |
 | 1.2 | 2026-02-10 | Dan | Aggiunta sezione FortiClient Sticky DNS bug |
+| 1.3 | 2026-02-20 | Dan | Aggiunta sezione accesso negato share via VPN |
 
 ---
 
@@ -187,6 +188,47 @@ ipconfig /flushdns
 ### Prevenzione
 
 Istruire gli utenti a **disconnettere sempre la VPN** prima di spegnere il PC o cambiare rete Wi-Fi.
+
+---
+
+## Accesso negato alle share con VPN attiva ma connettività funzionante
+
+Laptop domain-joined (Windows 11) collegato tramite VPN. La connettività verso il Domain Controller è corretta, ma l'utente riceve **"Accesso negato"** aprendo cartelle condivise o unità mappate in Esplora File. Paradossalmente, `dir \\server\share` da PowerShell funziona.
+
+**Causa:** sessione Kerberos incoerente. L'utente ha fatto logon con credenziali cached (offline), poi ha connesso la VPN → i ticket Kerberos e la sessione SMB non sono allineati con le policy/gruppi AD correnti.
+
+### Procedura standard di accesso al dominio via VPN
+
+Questa è la procedura corretta da seguire **ogni volta** che ci si collega al dominio aziendale tramite VPN:
+
+1. Dopo il login al computer, avviare e collegare la VPN
+2. Dopo che la VPN si è connessa, premere **CTRL+ALT+CANC** e **bloccare il computer**
+3. Riaccedere con le proprie credenziali, forzando il dialogo di autenticazione tra client e domain controller
+4. Attendere qualche istante e verificare se le mappature di rete e i percorsi UNC sono disponibili
+5. Se non lo sono, eseguire `gpupdate` e verificare nuovamente
+
+### Se la procedura standard non basta
+
+Se dopo i passi precedenti le share risultano ancora inaccessibili con errore "Accesso negato", e la diagnostica conferma che tutto è regolare:
+
+```powershell
+ping dc01                              # OK
+Resolve-DnsName dc01.dominio.local     # OK
+Test-ComputerSecureChannel             # True
+klist                                  # TGT e ticket CIFS presenti e validi
+Get-SmbConnection                      # (come admin) connessioni visibili
+dir \\dc01\share                       # funziona da PowerShell
+# Ma Esplora File → "Accesso negato"
+```
+
+Eseguire il purge dei ticket Kerberos e rieseguire le GPO:
+
+```powershell
+klist purge
+gpupdate
+```
+
+Attendere qualche istante e verificare nuovamente l'accesso alle share da Esplora File.
 
 ---
 
